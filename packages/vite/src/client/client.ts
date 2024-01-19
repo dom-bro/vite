@@ -127,7 +127,7 @@ const debounceReload = (time: number) => {
       timer = null
     }
     timer = setTimeout(() => {
-      location.reload()
+      !document.hidden && location.reload()
     }, time)
   }
 }

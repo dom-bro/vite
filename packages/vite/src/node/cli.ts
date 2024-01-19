@@ -175,7 +175,7 @@ cli
       const viteStartTime = global.__vite_start_time ?? false
       const startupDurationString = viteStartTime
         ? colors.dim(
-            `ready in ${colors.reset(
+            `dombro ready in ${colors.reset(
               colors.bold(Math.ceil(performance.now() - viteStartTime)),
             )} ms`,
           )
