@@ -4,17 +4,14 @@ import { stripLiteral } from 'strip-literal'
 import type { Plugin } from '../plugin'
 import type { ResolvedConfig } from '../config'
 import type { ResolveFn } from '../'
-import {
-  injectQuery,
-  isParentDirectory,
-  slash,
-  transformStableResult,
-} from '../utils'
+import { injectQuery, isParentDirectory, transformStableResult } from '../utils'
 import { CLIENT_ENTRY } from '../constants'
+import { slash } from '../../shared/utils'
 import { fileToUrl } from './asset'
 import { preloadHelperId } from './importAnalysisBuild'
 import type { InternalResolveOptions } from './resolve'
 import { tryFsResolve } from './resolve'
+import { hasViteIgnoreRE } from './importAnalysis'
 
 /**
  * Convert `new URL('./foo.png', import.meta.url)` to its resolved built URL
@@ -58,6 +55,8 @@ export function assetImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
         let match: RegExpExecArray | null
         while ((match = assetImportMetaUrlRE.exec(cleanString))) {
           const [[startIndex, endIndex], [urlStart, urlEnd]] = match.indices!
+          if (hasViteIgnoreRE.test(code.slice(startIndex, urlStart))) continue
+
           const rawUrl = code.slice(urlStart, urlEnd)
 
           if (!s) s = new MagicString(code)
@@ -125,7 +124,7 @@ export function assetImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
           let builtUrl: string | undefined
           if (file) {
             try {
-              if (isParentDirectory(publicDir, file)) {
+              if (publicDir && isParentDirectory(publicDir, file)) {
                 const publicPath = '/' + path.posix.relative(publicDir, file)
                 builtUrl = await fileToUrl(publicPath, config, this)
               } else {
@@ -138,7 +137,8 @@ export function assetImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
           if (!builtUrl) {
             const rawExp = code.slice(startIndex, endIndex)
             config.logger.warnOnce(
-              `\n${rawExp} doesn't exist at build time, it will remain unchanged to be resolved at runtime`,
+              `\n${rawExp} doesn't exist at build time, it will remain unchanged to be resolved at runtime. ` +
+                `If this is intended, you can use the /* @vite-ignore */ comment to suppress this warning.`,
             )
             builtUrl = url
           }

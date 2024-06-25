@@ -15,6 +15,11 @@ interface HotCallback {
   fn: (modules: Array<ModuleNamespace | undefined>) => void
 }
 
+export interface HMRLogger {
+  error(msg: string | Error): void
+  debug(...msg: unknown[]): void
+}
+
 export interface HMRConnection {
   /**
    * Checked before sending messages to the client.
@@ -196,7 +201,7 @@ export class HMRClient {
   public messenger: HMRMessenger
 
   constructor(
-    public logger: Console,
+    public logger: HMRLogger,
     connection: HMRConnection,
     // This allows implementing reloading via different methods depending on the environment
     private importUpdatedModule: (update: Update) => Promise<ModuleNamespace>,
@@ -215,11 +220,25 @@ export class HMRClient {
     }
   }
 
+  public clear(): void {
+    this.hotModulesMap.clear()
+    this.disposeMap.clear()
+    this.pruneMap.clear()
+    this.dataMap.clear()
+    this.customListenersMap.clear()
+    this.ctxToListenersMap.clear()
+  }
+
   // After an HMR update, some modules are no longer imported on the page
   // but they may have left behind side effects that need to be cleaned up
   // (.e.g style injections)
-  // TODO Trigger their dispose callbacks.
-  public prunePaths(paths: string[]): void {
+  public async prunePaths(paths: string[]): Promise<void> {
+    await Promise.all(
+      paths.map((path) => {
+        const disposer = this.disposeMap.get(path)
+        if (disposer) return disposer(this.dataMap.get(path))
+      }),
+    )
     paths.forEach((path) => {
       const fn = this.pruneMap.get(path)
       if (fn) {
@@ -259,7 +278,7 @@ export class HMRClient {
     }
   }
 
-  public async fetchUpdate(update: Update): Promise<(() => void) | undefined> {
+  private async fetchUpdate(update: Update): Promise<(() => void) | undefined> {
     const { path, acceptedPath } = update
     const mod = this.hotModulesMap.get(path)
     if (!mod) {

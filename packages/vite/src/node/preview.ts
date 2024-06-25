@@ -1,9 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import sirv from 'sirv'
+import compression from '@polka/compression'
 import connect from 'connect'
 import type { Connect } from 'dep-types/connect'
 import corsMiddleware from 'cors'
+import { DEFAULT_PREVIEW_PORT } from './constants'
 import type {
   HttpServer,
   ResolvedServerOptions,
@@ -18,17 +20,21 @@ import {
   setClientErrorHandler,
 } from './http'
 import { openBrowser } from './server/openBrowser'
-import compression from './server/middlewares/compression'
 import { baseMiddleware } from './server/middlewares/base'
 import { htmlFallbackMiddleware } from './server/middlewares/htmlFallback'
 import { indexHtmlMiddleware } from './server/middlewares/indexHtml'
 import { notFoundMiddleware } from './server/middlewares/notFound'
 import { proxyMiddleware } from './server/middlewares/proxy'
-import { resolveHostname, resolveServerUrls, shouldServeFile } from './utils'
+import {
+  resolveHostname,
+  resolveServerUrls,
+  setupSIGTERMListener,
+  shouldServeFile,
+  teardownSIGTERMListener,
+} from './utils'
 import { printServerUrls } from './logger'
 import { bindCLIShortcuts } from './shortcuts'
 import type { BindCLIShortcutsOptions } from './shortcuts'
-import { DEFAULT_PREVIEW_PORT } from './constants'
 import { resolveConfig } from './config'
 import type { InlineConfig, ResolvedConfig } from './config'
 
@@ -108,6 +114,7 @@ export async function preview(
     'serve',
     'production',
     'production',
+    true,
   )
 
   const distDir = path.resolve(config.root, config.build.outDir)
@@ -136,11 +143,16 @@ export async function preview(
   const options = config.preview
   const logger = config.logger
 
+  const closeHttpServer = createServerCloseFn(httpServer)
+
   const server: PreviewServer = {
     config,
     middlewares: app,
     httpServer,
-    close: createServerCloseFn(httpServer),
+    async close() {
+      teardownSIGTERMListener(closeServerAndExit)
+      await closeHttpServer()
+    },
     resolvedUrls: null,
     printUrls() {
       if (server.resolvedUrls) {
@@ -153,6 +165,16 @@ export async function preview(
       bindCLIShortcuts(server as PreviewServer, options)
     },
   }
+
+  const closeServerAndExit = async () => {
+    try {
+      await server.close()
+    } finally {
+      process.exit()
+    }
+  }
+
+  setupSIGTERMListener(closeServerAndExit)
 
   // apply server hooks from plugins
   const postHooks: ((() => void) | void)[] = []

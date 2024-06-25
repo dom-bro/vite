@@ -24,6 +24,8 @@ export interface Update {
   explicitImportRequired?: boolean
   /** @internal */
   isWithinCircularImport?: boolean
+  /** @internal */
+  ssrInvalidates?: string[]
 }
 
 export interface PrunePayload {
@@ -34,6 +36,8 @@ export interface PrunePayload {
 export interface FullReloadPayload {
   type: 'full-reload'
   path?: string
+  /** @internal */
+  triggeredBy?: string
 }
 
 export interface CustomPayload {
