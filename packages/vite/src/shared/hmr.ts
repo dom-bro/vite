@@ -294,7 +294,7 @@ export class HMRClient {
         )
       }
       const loggedPath = isSelfUpdate ? path : `${acceptedPath} via ${path}`
-      this.logger.debug(`[vite] hot updated: ${loggedPath}`)
+      this.logger.debug(`[vite] dombro hot updated: ${loggedPath}`)
     }
   }
 }

@@ -228,6 +228,7 @@ export function updateModules(
   for (const mod of modules) {
     const boundaries: PropagationBoundary[] = []
     const hasDeadEnd = propagateUpdate(mod, traversedModules, boundaries)
+    if (hasDeadEnd) console.log('hasDeadEndd', mod)
 
     moduleGraph.invalidateModule(mod, invalidatedModules, timestamp, true)
 
@@ -263,7 +264,7 @@ export function updateModules(
         ? colors.dim(` (${needFullReload})`)
         : ''
     config.logger.info(
-      colors.green(`page reload `) + colors.dim(file) + reason,
+      colors.green(`dombro page reload `) + colors.dim(file) + reason,
       { clear: !afterInvalidation, timestamp: true },
     )
     hot.send({
@@ -278,7 +279,7 @@ export function updateModules(
   }
 
   config.logger.info(
-    colors.green(`hmr update `) +
+    colors.green(`dombro hmr update `) +
       colors.dim([...new Set(updates.map((u) => u.path))].join(', ')),
     { clear: !afterInvalidation, timestamp: true },
   )
@@ -333,6 +334,7 @@ function propagateUpdate(
   boundaries: PropagationBoundary[],
   currentChain: ModuleNode[] = [node],
 ): HasDeadEnd {
+  console.log('propagateUpdatee', node)
   if (traversedModules.has(node)) {
     return false
   }
@@ -386,6 +388,7 @@ function propagateUpdate(
     })
   } else {
     if (!node.importers.size) {
+      console.log('dombro ohhh importers.size')
       return true
     }
 
@@ -396,6 +399,7 @@ function propagateUpdate(
       !isCSSRequest(node.url) &&
       [...node.importers].every((i) => isCSSRequest(i.url))
     ) {
+      console.log('dombro ohhh isCSSRequest')
       return true
     }
   }
@@ -426,6 +430,7 @@ function propagateUpdate(
       !currentChain.includes(importer) &&
       propagateUpdate(importer, traversedModules, boundaries, subChain)
     ) {
+      console.log('dombro ohhh importer', importer)
       return true
     }
   }

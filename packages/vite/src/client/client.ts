@@ -16,7 +16,7 @@ declare const __HMR_BASE__: string
 declare const __HMR_TIMEOUT__: number
 declare const __HMR_ENABLE_OVERLAY__: boolean
 
-console.debug('[vite] connecting...')
+console.debug('[vite] dombro connecting...')
 
 const importMetaUrl = new URL(import.meta.url)
 
@@ -127,6 +127,7 @@ const debounceReload = (time: number) => {
       timer = null
     }
     timer = setTimeout(() => {
+      console.log('[vite dombro] page reload')
       !document.hidden && location.reload()
     }, time)
   }
@@ -170,7 +171,7 @@ const hmrClient = new HMRClient(
 async function handleMessage(payload: HMRPayload) {
   switch (payload.type) {
     case 'connected':
-      console.debug(`[vite] connected.`)
+      console.debug(`[vite] dombro connected.`)
       hmrClient.messenger.flush()
       // proxy(nginx, docker) hmr ws maybe caused timeout,
       // so send ping package let ws keep alive.
