@@ -102,7 +102,7 @@ export function splitVendorChunkPlugin(): Plugin {
     const cache = new SplitVendorChunkCache()
     caches.push(cache)
     const build = config.build ?? {}
-    const format = output?.format
+    const format = output.format
     if (!build.ssr && !build.lib && format !== 'umd' && format !== 'iife') {
       return splitVendorChunk({ cache })
     }
@@ -110,7 +110,7 @@ export function splitVendorChunkPlugin(): Plugin {
   return {
     name: 'vite:split-vendor-chunk',
     config(config) {
-      let outputs = config?.build?.rollupOptions?.output
+      let outputs = config.build?.rollupOptions?.output
       if (outputs) {
         outputs = arraify(outputs)
         for (const output of outputs) {
@@ -125,7 +125,7 @@ export function splitVendorChunkPlugin(): Plugin {
               } else {
                 // else, leave the object form of manualChunks untouched, as
                 // we can't safely replicate rollup handling.
-                // eslint-disable-next-line no-console
+                 
                 console.warn(
                   "(!) the `splitVendorChunk` plugin doesn't have any effect when using the object form of `build.rollupOptions.output.manualChunks`. Consider using the function form instead.",
                 )

@@ -143,6 +143,18 @@ describe('asset imports from js', () => {
         "
       `)
   })
+
+  test('from /public (js)', async () => {
+    expect(await page.textContent('.public-js-import')).toMatch(
+      '/foo/bar/raw.js',
+    )
+    expect(await page.textContent('.public-js-import-content'))
+      .toMatchInlineSnapshot(`
+        "document.querySelector('.raw-js').textContent =
+          '[success] Raw js from /public loaded'
+        "
+      `)
+  })
 })
 
 describe('css url() references', () => {
@@ -216,6 +228,11 @@ describe('css url() references', () => {
     })
   })
 
+  test('image-set and url exist at the same time.', async () => {
+    const imageSet = await getBg('.image-set-and-url-exsiting-at-same-time')
+    expect(imageSet).toMatch(assetMatch)
+  })
+
   test('relative in @import', async () => {
     expect(await getBg('.css-url-relative-at-imported')).toMatch(assetMatch)
   })
@@ -259,6 +276,12 @@ describe('css url() references', () => {
     expect(bg).toMatch(assetMatch)
   })
 
+  test('preinlined SVG', async () => {
+    expect(await getBg('.css-url-preinlined-svg')).toMatch(
+      /data:image\/svg\+xml,.+/,
+    )
+  })
+
   test.runIf(isBuild)('generated paths in CSS', () => {
     const css = findAssetFile(/index-[-\w]{8}\.css$/, 'foo')
 
@@ -270,15 +293,11 @@ describe('css url() references', () => {
   })
 
   test('url() with svg', async () => {
-    expect(await getBg('.css-url-svg')).toMatch(
-      isBuild ? /data:image\/svg\+xml,.+/ : '/foo/bar/nested/fragment-bg.svg',
-    )
+    expect(await getBg('.css-url-svg')).toMatch(/data:image\/svg\+xml,.+/)
   })
 
   test('image-set() with svg', async () => {
-    expect(await getBg('.css-image-set-svg')).toMatch(
-      isBuild ? /data:image\/svg\+xml,.+/ : '/foo/bar/nested/fragment-bg.svg',
-    )
+    expect(await getBg('.css-image-set-svg')).toMatch(/data:image\/svg\+xml,.+/)
   })
 })
 
@@ -335,6 +354,18 @@ describe('image', () => {
   })
 })
 
+describe('meta', () => {
+  test('og image', async () => {
+    const meta = await page.$('.meta-og-image')
+    const content = await meta.getAttribute('content')
+    expect(content).toMatch(
+      isBuild
+        ? /\/foo\/bar\/assets\/asset-\w{8}\.png/
+        : /\/foo\/bar\/nested\/asset.png/,
+    )
+  })
+})
+
 describe('svg fragments', () => {
   // 404 is checked already, so here we just ensure the urls end with #fragment
   test('img url', async () => {
@@ -352,10 +383,14 @@ describe('svg fragments', () => {
   test('from js import', async () => {
     const img = await page.$('.svg-frag-import')
     expect(await img.getAttribute('src')).toMatch(
-      isBuild
-        ? // Assert trimmed (data URI starts with < and ends with >)
-          /^data:image\/svg\+xml,%3c.*%3e#icon-heart-view$/
-        : /svg#icon-heart-view$/,
+      // Assert trimmed (data URI starts with < and ends with >)
+      /^data:image\/svg\+xml,%3c.*%3e#icon-heart-view$/,
+    )
+  })
+
+  test('url with an alias', async () => {
+    expect(await getBg('.icon-clock-alias')).toMatch(
+      /\.svg#icon-clock-view"\)$/,
     )
   })
 })
@@ -368,6 +403,32 @@ test('Unknown extension assets import', async () => {
 
 test('?raw import', async () => {
   expect(await page.textContent('.raw')).toMatch('SVG')
+})
+
+test('?no-inline svg import', async () => {
+  expect(await page.textContent('.no-inline-svg')).toMatch(
+    isBuild
+      ? /\/foo\/bar\/assets\/fragment-[-\w]{8}\.svg\?no-inline/
+      : '/foo/bar/nested/fragment.svg?no-inline',
+  )
+})
+
+test('?inline png import', async () => {
+  expect(await page.textContent('.inline-png')).toMatch(
+    /^data:image\/png;base64,/,
+  )
+})
+
+test('?inline public png import', async () => {
+  expect(await page.textContent('.inline-public-png')).toMatch(
+    /^data:image\/png;base64,/,
+  )
+})
+
+test('?inline public json import', async () => {
+  expect(await page.textContent('.inline-public-json')).toMatch(
+    /^data:application\/json;base64,/,
+  )
 })
 
 test('?url import', async () => {
@@ -402,9 +463,7 @@ describe('unicode url', () => {
 describe.runIf(isBuild)('encodeURI', () => {
   test('img src with encodeURI', async () => {
     const img = await page.$('.encodeURI')
-    expect(
-      (await img.getAttribute('src')).startsWith('data:image/png;base64'),
-    ).toBe(true)
+    expect(await img.getAttribute('src')).toMatch(/^data:image\/png;base64,/)
   })
 })
 
@@ -419,6 +478,14 @@ test('new URL("@/...", import.meta.url)', async () => {
 test('new URL("/...", import.meta.url)', async () => {
   expect(await page.textContent('.import-meta-url-base-path')).toMatch(
     iconMatch,
+  )
+})
+
+test('new URL("data:...", import.meta.url)', async () => {
+  const img = await page.$('.import-meta-url-data-uri-img')
+  expect(await img.getAttribute('src')).toMatch(/^data:image\/png;base64,/)
+  expect(await page.textContent('.import-meta-url-data-uri')).toMatch(
+    /^data:image\/png;base64,/,
   )
 })
 
@@ -496,7 +563,7 @@ test.runIf(isBuild)('manifest', async () => {
 
 describe.runIf(isBuild)('css and assets in css in build watch', () => {
   test('css will not be lost and css does not contain undefined', async () => {
-    editFile('index.html', (code) => code.replace('Assets', 'assets'), true)
+    editFile('index.html', (code) => code.replace('Assets', 'assets'))
     await notifyRebuildComplete(watcher)
     const cssFile = findAssetFile(/index-[-\w]+\.css$/, 'foo')
     expect(cssFile).not.toBe('')
@@ -505,7 +572,7 @@ describe.runIf(isBuild)('css and assets in css in build watch', () => {
 
   test('import module.css', async () => {
     expect(await getColor('#foo')).toBe('red')
-    editFile('css/foo.module.css', (code) => code.replace('red', 'blue'), true)
+    editFile('css/foo.module.css', (code) => code.replace('red', 'blue'))
     await notifyRebuildComplete(watcher)
     await page.reload()
     expect(await getColor('#foo')).toBe('blue')
@@ -513,7 +580,7 @@ describe.runIf(isBuild)('css and assets in css in build watch', () => {
 
   test('import with raw query', async () => {
     expect(await page.textContent('.raw-query')).toBe('foo')
-    editFile('static/foo.txt', (code) => code.replace('foo', 'zoo'), true)
+    editFile('static/foo.txt', (code) => code.replace('foo', 'zoo'))
     await notifyRebuildComplete(watcher)
     await page.reload()
     expect(await page.textContent('.raw-query')).toBe('zoo')
@@ -529,11 +596,7 @@ if (!isBuild) {
   test('@import in html style tag hmr', async () => {
     await untilUpdated(() => getColor('.import-css'), 'rgb(0, 136, 255)')
     const loadPromise = page.waitForEvent('load')
-    editFile(
-      './css/import.css',
-      (code) => code.replace('#0088ff', '#00ff88'),
-      true,
-    )
+    editFile('./css/import.css', (code) => code.replace('#0088ff', '#00ff88'))
     await loadPromise
     await untilUpdated(() => getColor('.import-css'), 'rgb(0, 255, 136)')
   })
@@ -568,5 +631,12 @@ test.runIf(isBuild)('assets inside <noscript> is rewrote', async () => {
   const indexHtml = readFile('./dist/foo/index.html')
   expect(indexHtml).toMatch(
     /<img class="noscript" src="\/foo\/bar\/assets\/asset-[-\w]+\.png" \/>/,
+  )
+})
+
+test.runIf(isBuild)('assets inside <template> is rewrote', async () => {
+  const indexHtml = readFile('./dist/foo/index.html')
+  expect(indexHtml).toMatch(
+    /<img class="template" src="\/foo\/bar\/assets\/asset-[-\w]+\.png" \/>/,
   )
 })

@@ -122,6 +122,9 @@
 <h2>Resolve absolute path</h2>
 <p class="absolute">fail</p>
 
+<h2>Resolve file url</h2>
+<p class="file-url">fail</p>
+
 <h2>Browser Field</h2>
 <p class="browser">fail</p>
 
@@ -172,6 +175,9 @@
 
 <h2>resolve non normalized absolute path</h2>
 <p class="non-normalized"></p>
+
+<h2>utf8-bom-package</h2>
+<p class="utf8-bom-package">fail</p>
 
 <script type="module">
   import '@generated-content-virtual-file'
@@ -396,6 +402,9 @@
 
   import nonNormalizedAbsolute from '@non-normalized'
   text('.non-normalized', nonNormalizedAbsolute)
+
+  import { msg as utf8BomPackage } from '@vitejs/test-utf8-bom-package'
+  text('.utf8-bom-package', utf8BomPackage)
 </script>
 
 <style>

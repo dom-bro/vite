@@ -6,9 +6,11 @@ import {
   isInNodeModules,
   normalizePath,
   safeRealpathSync,
+  stripBomTag,
   tryStatSync,
 } from './utils'
 import type { Plugin } from './plugin'
+import type { InternalResolveOptions } from './plugins/resolve'
 
 let pnp: typeof import('pnpapi') | undefined
 if (process.versions.pnp) {
@@ -23,10 +25,15 @@ export type PackageCache = Map<string, PackageData>
 export interface PackageData {
   dir: string
   hasSideEffects: (id: string) => boolean | 'no-treeshake' | null
-  webResolvedImports: Record<string, string | undefined>
-  nodeResolvedImports: Record<string, string | undefined>
-  setResolvedCache: (key: string, entry: string, targetWeb: boolean) => void
-  getResolvedCache: (key: string, targetWeb: boolean) => string | undefined
+  setResolvedCache: (
+    key: string,
+    entry: string,
+    options: InternalResolveOptions,
+  ) => void
+  getResolvedCache: (
+    key: string,
+    options: InternalResolveOptions,
+  ) => string | undefined
   data: {
     [field: string]: any
     name: string
@@ -169,7 +176,7 @@ export function findNearestMainPackageData(
 }
 
 export function loadPackageData(pkgPath: string): PackageData {
-  const data = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'))
+  const data = JSON.parse(stripBomTag(fs.readFileSync(pkgPath, 'utf-8')))
   const pkgDir = normalizePath(path.dirname(pkgPath))
   const { sideEffects } = data
   let hasSideEffects: (id: string) => boolean | null
@@ -201,29 +208,47 @@ export function loadPackageData(pkgPath: string): PackageData {
     hasSideEffects = () => null
   }
 
+  const resolvedCache: Record<string, string | undefined> = {}
   const pkg: PackageData = {
     dir: pkgDir,
     data,
     hasSideEffects,
-    webResolvedImports: {},
-    nodeResolvedImports: {},
-    setResolvedCache(key: string, entry: string, targetWeb: boolean) {
-      if (targetWeb) {
-        pkg.webResolvedImports[key] = entry
-      } else {
-        pkg.nodeResolvedImports[key] = entry
-      }
+    setResolvedCache(key, entry, options) {
+      resolvedCache[getResolveCacheKey(key, options)] = entry
     },
-    getResolvedCache(key: string, targetWeb: boolean) {
-      if (targetWeb) {
-        return pkg.webResolvedImports[key]
-      } else {
-        return pkg.nodeResolvedImports[key]
-      }
+    getResolvedCache(key, options) {
+      return resolvedCache[getResolveCacheKey(key, options)]
     },
   }
 
   return pkg
+}
+
+function getResolveCacheKey(key: string, options: InternalResolveOptions) {
+  // cache key needs to include options which affect
+  // `resolvePackageEntry` or `resolveDeepImport`
+  return [
+    key,
+    options.isRequire ? '1' : '0',
+    options.conditions.join('_'),
+    options.extensions.join('_'),
+    options.mainFields.join('_'),
+  ].join('|')
+}
+
+export function findNearestNodeModules(basedir: string): string | null {
+  while (basedir) {
+    const pkgPath = path.join(basedir, 'node_modules')
+    if (tryStatSync(pkgPath)?.isDirectory()) {
+      return pkgPath
+    }
+
+    const nextBasedir = path.dirname(basedir)
+    if (nextBasedir === basedir) break
+    basedir = nextBasedir
+  }
+
+  return null
 }
 
 export function watchPackageDataPlugin(packageCache: PackageCache): Plugin {
@@ -258,11 +283,6 @@ export function watchPackageDataPlugin(packageCache: PackageCache): Plugin {
     watchChange(id) {
       if (id.endsWith('/package.json')) {
         invalidatePackageData(packageCache, path.normalize(id))
-      }
-    },
-    handleHotUpdate({ file }) {
-      if (file.endsWith('/package.json')) {
-        invalidatePackageData(packageCache, path.normalize(file))
       }
     },
   }

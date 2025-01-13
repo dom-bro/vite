@@ -123,6 +123,10 @@ test('absolute path', async () => {
   expect(await page.textContent('.absolute')).toMatch('[success]')
 })
 
+test('file url', async () => {
+  expect(await page.textContent('.file-url')).toMatch('[success]')
+})
+
 test('browser field', async () => {
   expect(await page.textContent('.browser')).toMatch('[success]')
 })
@@ -243,4 +247,8 @@ test.runIf(isBuild)('public dir is not copied', async () => {
   expect(
     fs.existsSync(path.resolve(testDir, 'dist/should-not-be-copied')),
   ).toBe(false)
+})
+
+test('import utf8-bom package', async () => {
+  expect(await page.textContent('.utf8-bom-package')).toMatch('[success]')
 })
